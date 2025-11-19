@@ -1,26 +1,12 @@
 {
   "name": "FocusSnap",
   "short_name": "FocusSnap",
-  "description": "Fast offline camera app with countdown timer.",
-  "start_url": "/focussnap/",
-  "scope": "/focussnap/",
+  "start_url": "/",
   "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#4CAF50",
-  "orientation": "portrait-primary",
-  "categories": ["photography", "productivity"],
+  "background_color": "#f7fbfc",
+  "theme_color": "#0b4f6c",
   "icons": [
-    {
-      "src": "/focussnap/icons/icon-192.png",
-      "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "/focussnap/icons/icon-512.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "any maskable"
-    }
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png" }
   ]
 }
