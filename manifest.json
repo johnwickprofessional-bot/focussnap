@@ -1,15 +1,14 @@
 {
   "name": "FocusSnap",
   "short_name": "FocusSnap",
-  "description": "A fast, offline camera app to organize your shots instantly.",
-  "id": "/focussnap/",
+  "description": "Fast offline camera app with countdown timer.",
   "start_url": "/focussnap/",
   "scope": "/focussnap/",
   "display": "standalone",
-  "orientation": "portrait",
   "background_color": "#ffffff",
   "theme_color": "#4CAF50",
-  "categories": ["productivity", "photography"],
+  "orientation": "portrait-primary",
+  "categories": ["photography", "productivity"],
   "icons": [
     {
       "src": "/focussnap/icons/icon-192.png",
@@ -25,4 +24,3 @@
     }
   ]
 }
-
