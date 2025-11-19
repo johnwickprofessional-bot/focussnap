@@ -47,4 +47,250 @@
         </div>
 
         <div class="row buttons">
-          <button id="star
+          <button id="startTimerBtn" class="primary">Start timer & Capture</button>
+          <button id="captureBtn">Capture now</button>
+          <button id="downloadAllBtn">Download all</button>
+        </div>
+
+        <div class="row status">
+          <span id="countdown" class="countdown">—</span>
+          <span id="msg" class="muted">Camera initializing…</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="gallery-card">
+      <h2>Gallery</h2>
+      <div id="gallery" class="gallery"></div>
+      <p class="muted small">Captured images are stored locally on this device (browser storage).</p>
+    </section>
+
+    <footer>
+      <small>FocusSnap • Offline-ready PWA</small>
+    </footer>
+  </main>
+
+  <!-- App logic -->
+  <script>
+  // ======= Config =======
+  const BASE = "/focussnap"; // GitHub Pages base path (important)
+
+  // ======= Elements =======
+  const video = document.getElementById("video");
+  const canvas = document.getElementById("canvas");
+  const overlay = document.getElementById("overlay");
+  const timerInput = document.getElementById("timerInput");
+  const startTimerBtn = document.getElementById("startTimerBtn");
+  const captureBtn = document.getElementById("captureBtn");
+  const countdownEl = document.getElementById("countdown");
+  const msg = document.getElementById("msg");
+  const galleryEl = document.getElementById("gallery");
+  const facingSelect = document.getElementById("facingSelect");
+  const downloadAllBtn = document.getElementById("downloadAllBtn");
+
+  let stream = null;
+  let countdownTimer = null;
+
+  // ======= Camera Setup =======
+  async function startCamera() {
+    stopCamera();
+    const facingMode = facingSelect.value || "environment";
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode },
+        audio: false
+      });
+      video.srcObject = stream;
+      msg.textContent = "Camera ready";
+    } catch (err) {
+      msg.textContent = "Camera not available: " + (err.message || err);
+      console.error(err);
+    }
+  }
+
+  function stopCamera() {
+    if (stream) {
+      stream.getTracks().forEach(t => t.stop());
+      stream = null;
+    }
+  }
+
+  facingSelect.addEventListener("change", () => startCamera());
+
+  // ======= Capture =======
+  function captureImage() {
+    const w = video.videoWidth;
+    const h = video.videoHeight;
+    if (!w || !h) {
+      overlay.textContent = "No video";
+      return null;
+    }
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(video, 0, 0, w, h);
+    const dataUrl = canvas.toDataURL("image/jpeg", 0.9);
+    saveImage(dataUrl);
+    addImageToGallery(dataUrl);
+    overlay.textContent = "Captured";
+    setTimeout(() => overlay.textContent = "Ready", 800);
+    return dataUrl;
+  }
+
+  // ======= Timer =======
+  function startCountdown(seconds) {
+    clearInterval(countdownTimer);
+    let s = Math.max(0, Math.floor(seconds));
+    countdownEl.textContent = s > 0 ? s.toString() : "0";
+    overlay.textContent = "Get ready";
+    if (s === 0) {
+      captureImage();
+      return;
+    }
+    countdownTimer = setInterval(() => {
+      s--;
+      countdownEl.textContent = s >= 0 ? s.toString() : "—";
+      if (s <= 0) {
+        clearInterval(countdownTimer);
+        captureImage();
+      }
+    }, 1000);
+  }
+
+  startTimerBtn.addEventListener("click", () => {
+    const s = Number(timerInput.value) || 0;
+    startCountdown(s);
+  });
+
+  captureBtn.addEventListener("click", () => {
+    startCountdown(0);
+  });
+
+  // ======= Local storage gallery (simple) =======
+  // WARNING: localStorage has size limits. For many photos consider using IndexedDB.
+  const STORAGE_KEY = "focussnap_images_v1";
+
+  function loadStoredImages() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      return raw ? JSON.parse(raw) : [];
+    } catch (err) {
+      console.warn("Could not read stored images", err);
+      return [];
+    }
+  }
+
+  function saveImage(dataUrl) {
+    try {
+      const arr = loadStoredImages();
+      // keep max 30 items to avoid storage issues
+      arr.unshift({ id: Date.now(), dataUrl });
+      while (arr.length > 30) arr.pop();
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(arr));
+    } catch (err) {
+      console.error("Saving image failed", err);
+    }
+  }
+
+  function clearGallery() {
+    localStorage.removeItem(STORAGE_KEY);
+    renderGallery();
+  }
+
+  function addImageToGallery(dataUrl) {
+    const el = document.createElement("div");
+    el.className = "thumb";
+    const img = document.createElement("img");
+    img.src = dataUrl;
+    img.loading = "lazy";
+    el.appendChild(img);
+
+    const tools = document.createElement("div");
+    tools.className = "thumb-tools";
+    const dl = document.createElement("a");
+    dl.href = dataUrl;
+    dl.download = "focussnap-" + Date.now() + ".jpg";
+    dl.textContent = "Download";
+    const del = document.createElement("button");
+    del.textContent = "Delete";
+    del.addEventListener("click", () => {
+      removeImage(dataUrl);
+    });
+    tools.appendChild(dl);
+    tools.appendChild(del);
+    el.appendChild(tools);
+
+    galleryEl.prepend(el);
+  }
+
+  function removeImage(dataUrl) {
+    const arr = loadStoredImages().filter(i => i.dataUrl !== dataUrl);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(arr));
+    renderGallery();
+  }
+
+  function renderGallery() {
+    galleryEl.innerHTML = "";
+    const arr = loadStoredImages();
+    if (!arr.length) {
+      galleryEl.innerHTML = "<div class='muted small'>No images yet</div>";
+      return;
+    }
+    arr.forEach(item => {
+      const el = document.createElement("div");
+      el.className = "thumb";
+      const img = document.createElement("img");
+      img.src = item.dataUrl;
+      img.loading = "lazy";
+      el.appendChild(img);
+      const tools = document.createElement("div");
+      tools.className = "thumb-tools";
+      const dl = document.createElement("a");
+      dl.href = item.dataUrl;
+      dl.download = "focussnap-" + item.id + ".jpg";
+      dl.textContent = "Download";
+      const del = document.createElement("button");
+      del.textContent = "Delete";
+      del.addEventListener("click", () => {
+        removeImage(item.dataUrl);
+      });
+      tools.appendChild(dl);
+      tools.appendChild(del);
+      el.appendChild(tools);
+      galleryEl.appendChild(el);
+    });
+  }
+
+  downloadAllBtn.addEventListener("click", () => {
+    const arr = loadStoredImages();
+    if (!arr.length) return alert("No images to download");
+    arr.forEach((it, idx) => {
+      const a = document.createElement("a");
+      a.href = it.dataUrl;
+      a.download = "focussnap-" + it.id + ".jpg";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    });
+  });
+
+  // render initial gallery
+  renderGallery();
+
+  // Start camera on load
+  window.addEventListener("load", () => {
+    startCamera();
+
+    // Register service worker
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("/focussnap/service-worker.js")
+        .then(() => console.log("SW registered"))
+        .catch(err => console.warn("SW register failed", err));
+    }
+  });
+
+  // cleanup camera when leaving
+  window.addEventListener("beforeunload", () => stopCamera());
+  </script>
+</body>
+</html>
