@@ -20,5 +20,10 @@
     "purpose": "any maskable"
   }
 ]
+"description": "A fast, offline camera app to organize your shots instantly."
+"orientation": "portrait"
+"id": "/focussnap/"
+"categories": ["productivity", "photography"]
 }
+
 
