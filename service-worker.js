@@ -11,28 +11,22 @@ const APP_FILES = [
 // Install: cache files
 self.addEventListener("install", (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(APP_FILES);
-    })
+    caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_FILES))
   );
   self.skipWaiting();
 });
 
-// Activate: cleanup old caches
+// Activate: delete old caches
 self.addEventListener("activate", (event) => {
   event.waitUntil(
-    caches.keys().then((keys) => {
-      return Promise.all(
-        keys
-          .filter((key) => key !== CACHE_NAME)
-          .map((key) => caches.delete(key))
-      );
-    })
+    caches.keys().then((keys) =>
+      Promise.all(keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k)))
+    )
   );
   self.clients.claim();
 });
 
-// Fetch: serve from cache first, then network fallback
+// Fetch: cache-first strategy
 self.addEventListener("fetch", (event) => {
   event.respondWith(
     caches.match(event.request).then((cached) => {
