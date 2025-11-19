@@ -1,151 +1,102 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>FocusSnap — Pomodoro + Quick Note</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-  <!-- Manifest -->
-  <link rel="manifest" href="manifest.json">
+  <title>FocusSnap</title>
 
-  <meta name="theme-color" content="#0b4f6c"/>
+  <!-- PWA Manifest (MUST include full path for GitHub Pages) -->
+  <link rel="manifest" href="/focussnap/manifest.json" />
+
+  <!-- iOS PWA Support -->
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <link rel="apple-touch-icon" href="/focussnap/icons/icon-192.png" />
+
+  <!-- Theme Color -->
+  <meta name="theme-color" content="#4CAF50" />
 
   <style>
     body {
-      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial;
       margin: 0;
-      background: #f7fbfc;
-      color: #052a36;
+      font-family: Arial, sans-serif;
+      background: #f5f5f5;
       display: flex;
       flex-direction: column;
-      min-height: 100vh;
+      align-items: center;
+      justify-content: start;
+      padding: 20px;
     }
-    .wrap { max-width: 560px; margin: 32px auto; padding: 18px; }
-    h1 { margin: 0 0 12px; font-size: 1.6rem; }
-    .timer { font-size: 3.4rem; margin: 18px 0; text-align: center; }
-    button {
-      padding: 10px 16px;
-      border-radius: 10px;
-      border: 0;
-      background: #0b8793;
-      color: white;
-      font-weight: 600;
-      margin: 6px;
+
+    h1 {
+      margin-top: 20px;
+      color: #333;
+      font-size: 28px;
     }
-    .notes { margin-top: 18px; }
-    textarea {
+
+    #video {
       width: 100%;
-      min-height: 120px;
-      border-radius: 10px;
-      border: 1px solid #d9e6ea;
-      padding: 10px;
+      max-width: 400px;
+      border-radius: 12px;
+      margin-top: 20px;
+      background: #000;
     }
-    .controls { text-align: center; }
-    .small { font-size: 0.85rem; color: #316071; margin-top: 8px; }
+
+    button {
+      margin-top: 20px;
+      padding: 12px 20px;
+      font-size: 16px;
+      border: none;
+      background: #4CAF50;
+      color: white;
+      border-radius: 10px;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background: #45a049;
+    }
+
+    #photo {
+      margin-top: 20px;
+      max-width: 400px;
+      width: 100%;
+      border-radius: 12px;
+    }
   </style>
 </head>
 
 <body>
-  <div class="wrap">
-    <h1>FocusSnap</h1>
-    <div class="small">Pomodoro timer + instant note capture — build focus habits fast.</div>
+  <h1>FocusSnap</h1>
 
-    <div id="timer" class="timer">25:00</div>
+  <video id="video" playsinline autoplay></video>
+  <canvas id="canvas" style="display:none;"></canvas>
+  <img id="photo" alt="" />
 
-    <div class="controls" id="controls">
-      <button id="start">Start</button>
-      <button id="stop">Stop</button>
-      <button id="reset">Reset</button>
-    </div>
+  <button id="snap">Take Photo</button>
 
-    <div class="notes">
-      <label for="note"><strong>Quick capture</strong></label>
-      <textarea id="note" placeholder="Write a quick note or task..."></textarea>
-      <div style="text-align:right;margin-top:8px">
-        <button id="save">Save</button>
-      </div>
-      <ul id="list"></ul>
-    </div>
-  </div>
+  <script>
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('canvas');
+    const photo = document.getElementById('photo');
+    const snapBtn = document.getElementById('snap');
 
-<script>
-/* Timer logic */
-const START = document.getElementById('start');
-const STOP = document.getElementById('stop');
-const RESET = document.getElementById('reset');
-const TIMER = document.getElementById('timer');
-
-let defaultSec = 25 * 60;
-let sec = defaultSec;
-let interval = null;
-
-function fmt(s){
-  return String(Math.floor(s/60)).padStart(2,'0')
-    + ':' +
-    String(s%60).padStart(2,'0');
-}
-
-function render(){ TIMER.textContent = fmt(sec); }
-
-START.onclick = () => {
-  if (interval) return;
-  interval = setInterval(() => {
-    if (sec > 0) {
-      sec--;
-      render();
-    } else {
-      clearInterval(interval);
-      interval = null;
-      navigator.vibrate?.(500);
-      alert('Session finished!');
+    // Start Camera
+    async function initCamera() {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: "environment" }
+        });
+        video.srcObject = stream;
+      } catch (err) {
+        console.error("Camera error:", err);
+      }
     }
-  }, 1000);
-};
 
-STOP.onclick = () => { clearInterval(interval); interval = null; };
+    snapBtn.addEventListener("click", () => {
+      const ctx = canvas.getContext('2d');
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
 
-RESET.onclick = () => {
-  clearInterval(interval);
-  interval = null;
-  sec = defaultSec;
-  render();
-};
-
-/* Notes */
-const NOTE = document.getElementById('note');
-const SAVE = document.getElementById('save');
-const LIST = document.getElementById('list');
-
-SAVE.onclick = () => {
-  const v = NOTE.value.trim();
-  if (!v) return;
-  const li = document.createElement('li');
-  li.textContent = v;
-  LIST.prepend(li);
-  NOTE.value = '';
-
-  const items = [v].concat(JSON.parse(localStorage.getItem('notes') || '[]'));
-  localStorage.setItem('notes', JSON.stringify(items));
-};
-
-function loadNotes(){
-  const items = JSON.parse(localStorage.getItem('notes') || '[]);
-  items.forEach(text => {
-    const li = document.createElement('li');
-    li.textContent = text;
-    LIST.appendChild(li);
-  });
-}
-
-render();
-loadNotes();
-
-/* Service Worker (PWA) */
-if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("service-worker.js")
-    .catch(err => console.error("SW fail", err));
-}
-</script>
-
-</body>
-</html>
+      ctx.drawImage(video, 0, 0);
