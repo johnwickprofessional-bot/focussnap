@@ -3,294 +3,90 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>FocusSnap — Camera + Timer</title>
-
-  <!-- PWA manifest and theme -->
-  <link rel="manifest" href="/focussnap/manifest.json" />
-  <meta name="theme-color" content="#4CAF50" />
-
-  <!-- Icons for older devices -->
-  <link rel="icon" href="/focussnap/icons/icon-192.png" />
-
-  <!-- Styles (kept external file 'app.css' referenced for clarity) -->
-  <link rel="stylesheet" href="/focussnap/app.css" />
-
+  <title>FocusSnap — Pomodoro + Quick Note</title>
+  <link rel="manifest" href="/manifest.json" />
+  <meta name="theme-color" content="#0b4f6c"/>
+  <style>
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;margin:0;background:#f7fbfc;color:#052a36;display:flex;flex-direction:column;min-height:100vh}
+    .wrap{max-width:560px;margin:32px auto;padding:18px}
+    h1{margin:0 0 12px;font-size:1.6rem}
+    .timer{font-size:3.4rem;margin:18px 0;text-align:center}
+    button{padding:10px 16px;border-radius:10px;border:0;background:#0b8793;color:white;font-weight:600;margin:6px}
+    .notes{margin-top:18px}
+    textarea{width:100%;min-height:120px;border-radius:10px;border:1px solid #d9e6ea;padding:10px}
+    .controls{text-align:center}
+    .small{font-size:0.85rem;color:#316071;margin-top:8px}
+  </style>
 </head>
 <body>
-  <main class="container">
-    <header>
-      <h1>FocusSnap</h1>
-      <p class="muted">Camera with countdown timer · works offline</p>
-    </header>
+  <div class="wrap">
+    <h1>FocusSnap</h1>
+    <div class="small">Pomodoro timer + instant note capture — build focus habits fast.</div>
 
-    <section class="camera-card">
-      <div class="preview-wrap">
-        <video id="video" playsinline autoplay></video>
-        <canvas id="canvas" style="display:none;"></canvas>
-        <div id="overlay" class="overlay">Ready</div>
+    <div id="timer" class="timer">25:00</div>
+    <div class="controls" id="controls">
+      <button id="start">Start</button>
+      <button id="stop">Stop</button>
+      <button id="reset">Reset</button>
+    </div>
+
+    <div class="notes">
+      <label for="note"><strong>Quick capture</strong></label>
+      <textarea id="note" placeholder="Write a quick note or task..."></textarea>
+      <div style="text-align:right;margin-top:8px">
+        <button id="save">Save</button>
       </div>
+      <ul id="list"></ul>
+    </div>
+  </div>
 
-      <div class="controls">
-        <div class="row">
-          <label>
-            Timer (sec):
-            <input id="timerInput" type="number" min="0" max="60" value="3" />
-          </label>
+<script>
+const START = document.getElementById('start');
+const STOP = document.getElementById('stop');
+const RESET = document.getElementById('reset');
+const TIMER = document.getElementById('timer');
+const NOTE = document.getElementById('note');
+const SAVE = document.getElementById('save');
+const LIST = document.getElementById('list');
 
-          <label>
-            Facing:
-            <select id="facingSelect">
-              <option value="environment">Rear</option>
-              <option value="user">Front</option>
-            </select>
-          </label>
-        </div>
+let defaultSec = 25*60;
+let sec = defaultSec;
+let interval = null;
 
-        <div class="row buttons">
-          <button id="startTimerBtn" class="primary">Start timer & Capture</button>
-          <button id="captureBtn">Capture now</button>
-          <button id="downloadAllBtn">Download all</button>
-        </div>
+function fmt(s){ return String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0'); }
+function render(){ TIMER.textContent = fmt(sec); }
 
-        <div class="row status">
-          <span id="countdown" class="countdown">—</span>
-          <span id="msg" class="muted">Camera initializing…</span>
-        </div>
-      </div>
-    </section>
+START.onclick = ()=>{
+  if(interval) return;
+  interval = setInterval(()=>{ if(sec>0){ sec--; render(); } else { clearInterval(interval); interval=null; navigator.vibrate?.(500); alert('Session finished!'); } },1000);
+};
+STOP.onclick = ()=>{ clearInterval(interval); interval = null; };
+RESET.onclick = ()=>{ clearInterval(interval); interval=null; sec=defaultSec; render(); };
 
-    <section class="gallery-card">
-      <h2>Gallery</h2>
-      <div id="gallery" class="gallery"></div>
-      <p class="muted small">Captured images are stored locally on this device (browser storage).</p>
-    </section>
+SAVE.onclick = ()=>{
+  const v = NOTE.value.trim();
+  if(!v) return;
+  const li = document.createElement('li');
+  li.textContent = v;
+  LIST.prepend(li);
+  NOTE.value='';
+  // persist minimal
+  const items = [v].concat(JSON.parse(localStorage.getItem('notes')||'[]'));
+  localStorage.setItem('notes', JSON.stringify(items));
+};
 
-    <footer>
-      <small>FocusSnap • Offline-ready PWA</small>
-    </footer>
-  </main>
+function loadNotes(){
+  const items = JSON.parse(localStorage.getItem('notes')||'[]');
+  items.forEach(t=>{ const li=document.createElement('li'); li.textContent=t; LIST.appendChild(li); });
+}
 
-  <!-- App logic -->
-  <script>
-  // ======= Config =======
-  const BASE = "/focussnap"; // GitHub Pages base path (important)
+render();
+loadNotes();
 
-  // ======= Elements =======
-  const video = document.getElementById("video");
-  const canvas = document.getElementById("canvas");
-  const overlay = document.getElementById("overlay");
-  const timerInput = document.getElementById("timerInput");
-  const startTimerBtn = document.getElementById("startTimerBtn");
-  const captureBtn = document.getElementById("captureBtn");
-  const countdownEl = document.getElementById("countdown");
-  const msg = document.getElementById("msg");
-  const galleryEl = document.getElementById("gallery");
-  const facingSelect = document.getElementById("facingSelect");
-  const downloadAllBtn = document.getElementById("downloadAllBtn");
-
-  let stream = null;
-  let countdownTimer = null;
-
-  // ======= Camera Setup =======
-  async function startCamera() {
-    stopCamera();
-    const facingMode = facingSelect.value || "environment";
-    try {
-      stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode },
-        audio: false
-      });
-      video.srcObject = stream;
-      msg.textContent = "Camera ready";
-    } catch (err) {
-      msg.textContent = "Camera not available: " + (err.message || err);
-      console.error(err);
-    }
-  }
-
-  function stopCamera() {
-    if (stream) {
-      stream.getTracks().forEach(t => t.stop());
-      stream = null;
-    }
-  }
-
-  facingSelect.addEventListener("change", () => startCamera());
-
-  // ======= Capture =======
-  function captureImage() {
-    const w = video.videoWidth;
-    const h = video.videoHeight;
-    if (!w || !h) {
-      overlay.textContent = "No video";
-      return null;
-    }
-    canvas.width = w;
-    canvas.height = h;
-    const ctx = canvas.getContext("2d");
-    ctx.drawImage(video, 0, 0, w, h);
-    const dataUrl = canvas.toDataURL("image/jpeg", 0.9);
-    saveImage(dataUrl);
-    addImageToGallery(dataUrl);
-    overlay.textContent = "Captured";
-    setTimeout(() => overlay.textContent = "Ready", 800);
-    return dataUrl;
-  }
-
-  // ======= Timer =======
-  function startCountdown(seconds) {
-    clearInterval(countdownTimer);
-    let s = Math.max(0, Math.floor(seconds));
-    countdownEl.textContent = s > 0 ? s.toString() : "0";
-    overlay.textContent = "Get ready";
-    if (s === 0) {
-      captureImage();
-      return;
-    }
-    countdownTimer = setInterval(() => {
-      s--;
-      countdownEl.textContent = s >= 0 ? s.toString() : "—";
-      if (s <= 0) {
-        clearInterval(countdownTimer);
-        captureImage();
-      }
-    }, 1000);
-  }
-
-  startTimerBtn.addEventListener("click", () => {
-    const s = Number(timerInput.value) || 0;
-    startCountdown(s);
-  });
-
-  captureBtn.addEventListener("click", () => {
-    startCountdown(0);
-  });
-
-  // ======= Local storage gallery (simple) =======
-  // WARNING: localStorage has size limits. For many photos consider using IndexedDB.
-  const STORAGE_KEY = "focussnap_images_v1";
-
-  function loadStoredImages() {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      return raw ? JSON.parse(raw) : [];
-    } catch (err) {
-      console.warn("Could not read stored images", err);
-      return [];
-    }
-  }
-
-  function saveImage(dataUrl) {
-    try {
-      const arr = loadStoredImages();
-      // keep max 30 items to avoid storage issues
-      arr.unshift({ id: Date.now(), dataUrl });
-      while (arr.length > 30) arr.pop();
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(arr));
-    } catch (err) {
-      console.error("Saving image failed", err);
-    }
-  }
-
-  function clearGallery() {
-    localStorage.removeItem(STORAGE_KEY);
-    renderGallery();
-  }
-
-  function addImageToGallery(dataUrl) {
-    const el = document.createElement("div");
-    el.className = "thumb";
-    const img = document.createElement("img");
-    img.src = dataUrl;
-    img.loading = "lazy";
-    el.appendChild(img);
-
-    const tools = document.createElement("div");
-    tools.className = "thumb-tools";
-    const dl = document.createElement("a");
-    dl.href = dataUrl;
-    dl.download = "focussnap-" + Date.now() + ".jpg";
-    dl.textContent = "Download";
-    const del = document.createElement("button");
-    del.textContent = "Delete";
-    del.addEventListener("click", () => {
-      removeImage(dataUrl);
-    });
-    tools.appendChild(dl);
-    tools.appendChild(del);
-    el.appendChild(tools);
-
-    galleryEl.prepend(el);
-  }
-
-  function removeImage(dataUrl) {
-    const arr = loadStoredImages().filter(i => i.dataUrl !== dataUrl);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(arr));
-    renderGallery();
-  }
-
-  function renderGallery() {
-    galleryEl.innerHTML = "";
-    const arr = loadStoredImages();
-    if (!arr.length) {
-      galleryEl.innerHTML = "<div class='muted small'>No images yet</div>";
-      return;
-    }
-    arr.forEach(item => {
-      const el = document.createElement("div");
-      el.className = "thumb";
-      const img = document.createElement("img");
-      img.src = item.dataUrl;
-      img.loading = "lazy";
-      el.appendChild(img);
-      const tools = document.createElement("div");
-      tools.className = "thumb-tools";
-      const dl = document.createElement("a");
-      dl.href = item.dataUrl;
-      dl.download = "focussnap-" + item.id + ".jpg";
-      dl.textContent = "Download";
-      const del = document.createElement("button");
-      del.textContent = "Delete";
-      del.addEventListener("click", () => {
-        removeImage(item.dataUrl);
-      });
-      tools.appendChild(dl);
-      tools.appendChild(del);
-      el.appendChild(tools);
-      galleryEl.appendChild(el);
-    });
-  }
-
-  downloadAllBtn.addEventListener("click", () => {
-    const arr = loadStoredImages();
-    if (!arr.length) return alert("No images to download");
-    arr.forEach((it, idx) => {
-      const a = document.createElement("a");
-      a.href = it.dataUrl;
-      a.download = "focussnap-" + it.id + ".jpg";
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-    });
-  });
-
-  // render initial gallery
-  renderGallery();
-
-  // Start camera on load
-  window.addEventListener("load", () => {
-    startCamera();
-
-    // Register service worker
-    if ("serviceWorker" in navigator) {
-      navigator.serviceWorker.register("/focussnap/service-worker.js")
-        .then(() => console.log("SW registered"))
-        .catch(err => console.warn("SW register failed", err));
-    }
-  });
-
-  // cleanup camera when leaving
-  window.addEventListener("beforeunload", () => stopCamera());
-  </script>
+// register service worker
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.register('/service-worker.js').catch(()=>{});
+}
+</script>
 </body>
 </html>
