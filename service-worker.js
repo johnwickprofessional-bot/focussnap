@@ -1,10 +1,10 @@
 const CACHE_NAME = 'focussnap-v1';
 const urlsToCache = [
-  '/',
-  '/index.html',
-  '/styles/main.css',
-  '/script/main.js',
-  // Add any other assets you want to cache for offline use
+'./',
+'./index.html',
+'./manifest.json',
+'./icons/icon-192.png',
+'./icons/icon-512.png'
 ];
 
 self.addEventListener('install', function(event) {
@@ -28,3 +28,4 @@ self.addEventListener('fetch', function(event) {
     )
   );
 });
+
