@@ -1,6 +1,6 @@
 {
-  "name": "FocusSnap",
-  "short_name": "FocusSnap",
+  "name": "Focussnap",
+  "short_name": "Focussnap",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#f7fbfc",
@@ -10,6 +10,7 @@
 { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" }
 ]
 }
+
 
 
 
